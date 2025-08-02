@@ -148,8 +148,8 @@ whatsapp-drive-assistant/
 ├── .env.sample             # 🔐 Sample environment config
 ├── workflow.json           # 🔄 Importable n8n workflow
 ├── helper/
-│   └── parseCommand.js     # 🧠 Command parsing logic
-└── demo.mp4 (optional)     # 🎥 Demo video
+   └── parseCommand.js     # 🧠 Command parsing logic
+
 ```
 
 ---
