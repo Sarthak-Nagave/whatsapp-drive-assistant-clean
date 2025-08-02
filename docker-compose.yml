@@ -1,0 +1,25 @@
+version: '3.7'
+
+services:
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: n8n_whatsapp_assistant
+    restart: always
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_USER=${N8N_USER}
+      - N8N_PASSWORD=${N8N_PASSWORD}
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
+      - TWILIO_WHATSAPP_NUMBER=${TWILIO_WHATSAPP_NUMBER}
+      - GOOGLE_SHEET_ID=${GOOGLE_SHEET_ID}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_EDITOR_BASE_URL=http://localhost:5678/
+      - VUE_APP_N8N_URL=http://localhost:5678/
+    volumes:
+      - ~/.n8n:/home/node/.n8n
+   

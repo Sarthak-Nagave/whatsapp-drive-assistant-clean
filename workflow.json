@@ -1,0 +1,780 @@
+{
+  "name": "WhatsApp Google Drive Assistant",
+  "nodes": [
+    {
+      "parameters": {
+        "bodyParametersJson": true
+      },
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "id": "fe75949d-3f0e-436d-96e0-84e1b7713d8d",
+      "position": [
+        280,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "const messageBody = $json.Body;\n\nconst commands = {\n  LIST: /LIST\\s*(\\/.*)/i,\n  DELETE: /DELETE\\s*(\\/.*)\\s*confirm/i,\n  MOVE: /MOVE\\s*(\\/.*)\\s*(\\/.*)/i,\n  SUMMARY: /SUMMARY\\s*(\\/.*)/i,\n  UNKNOWN: /.*/\n};\n\nlet command = 'UNKNOWN';\nlet sourcePath = '';\nlet destinationPath = '';\n\nfor (const cmd in commands) {\n  const match = messageBody.match(commands[cmd]);\n  if (match) {\n    command = cmd;\n    sourcePath = match[1].trim();\n    if (cmd === 'MOVE') {\n      destinationPath = match[2].trim();\n    }\n    break;\n  }\n}\n\nreturn [\n  {\n    command: command,\n    sourcePath: sourcePath,\n    destinationPath: destinationPath,\n    sender: $json.From\n  }\n];",
+        "jsScriptType": "node"
+      },
+      "name": "Parse Command",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "id": "e5513f50-ffec-4581-8b09-3221b22e1b12",
+      "position": [
+        540,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "columnId": "A1",
+        "operation": "append",
+        "spreadsheetId": "={{$env.GOOGLE_SHEET_ID}}",
+        "value": "={{JSON.stringify([new Date().toISOString(), $json.sender, $json.command, $json.sourcePath, 'Success'])}}"
+      },
+      "name": "Log Action",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 1,
+      "id": "53181829-0604-4f24-9b2f-78153400a402",
+      "credentials": {
+        "googleSheetsOAuth2Api": "googleSheetsApi"
+      },
+      "position": [
+        1380,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "message": "={{'Sorry, I could not find a file or folder at the path: ' + $json.sourcePath}}",
+        "to": "={{$json.sender}}",
+        "from": "={{$env.TWILIO_WHATSAPP_NUMBER}}"
+      },
+      "name": "Send Error Message",
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "id": "416629e4-c5b4-4e92-911e-b816001dd14f",
+      "credentials": {
+        "twilioApi": "twilioApi"
+      },
+      "position": [
+        1100,
+        840
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "mode": "json",
+          "value": [
+            {
+              "value1": "={{$json.command}}",
+              "value2": "LIST",
+              "operator": "stringEquals"
+            }
+          ]
+        }
+      },
+      "name": "Route Commands",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "id": "834f31c0-032f-41f2-87eb-116d9d1b64cf",
+      "position": [
+        800,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getFolderId",
+        "path": "1kPz3OgvPrAbGi7WIzh2g2nj-I76_Vvcm"
+      },
+      "name": "Get Folder ID",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 1,
+      "id": "b0f74619-3549-43c3-9828-444a7f0e6cf4",
+      "position": [
+        1100,
+        280
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": "googleDriveApi"
+      },
+      "dialogs": {
+        "activate": {
+          "nodes": [
+            "1800f4f9-4d6e-444a-9774-4b533f740d7c"
+          ]
+        }
+      }
+    },
+    {
+      "parameters": {
+        "message": "={{$json.body}}",
+        "to": "={{$json.sender}}",
+        "from": "={{$env.TWILIO_WHATSAPP_NUMBER}}"
+      },
+      "name": "Send Response",
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "id": "19e34e56-11f8-4e89-a35b-11c75c87a552",
+      "credentials": {
+        "twilioApi": "twilioApi"
+      },
+      "position": [
+        1680,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "folderId": "={{$json.folderId}}",
+        "returnAll": true
+      },
+      "name": "List Files",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 1,
+      "id": "1800f4f9-4d6e-444a-9774-4b533f740d7c",
+      "position": [
+        1380,
+        280
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": "googleDriveApi"
+      },
+      "dialogs": {
+        "activate": {
+          "nodes": [
+            "206f6880-92a5-4309-9060-6395b43063f9"
+          ]
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "const fileList = items.map(item => `- ${item.json.name}`).join('\\n');\n\nreturn [\n  {\n    body: `Found files in {{$json.sourcePath}}: \\n\\n${fileList}`\n  }\n];",
+        "jsScriptType": "node"
+      },
+      "name": "Format List",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "id": "206f6880-92a5-4309-9060-6395b43063f9",
+      "position": [
+        1680,
+        280
+      ],
+      "dialogs": {
+        "activate": {
+          "nodes": [
+            "b631d8c1-1557-418c-8f9f-682283a04297"
+          ]
+        }
+      }
+    },
+    {
+      "parameters": {
+        "message": "={{$json.body}}",
+        "to": "={{$json.sender}}",
+        "from": "={{$env.TWILIO_WHATSAPP_NUMBER}}"
+      },
+      "name": "Send List",
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "id": "b631d8c1-1557-418c-8f9f-682283a04297",
+      "credentials": {
+        "twilioApi": "twilioApi"
+      },
+      "position": [
+        1940,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "mode": "json",
+          "value": [
+            {
+              "value1": "={{$json.command}}",
+              "value2": "DELETE",
+              "operator": "stringEquals"
+            }
+          ]
+        }
+      },
+      "name": "DELETE?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "id": "31b25055-6b22-4a0b-8d5f-9f7a77e80f0c",
+      "position": [
+        800,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "fileId": "={{$json.fileId}}"
+      },
+      "name": "Delete File",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 1,
+      "id": "67ce6826-6143-4e05-9507-6f81df6881c0",
+      "position": [
+        1380,
+        500
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": "googleDriveApi"
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "fileId": "={{$json.fileId}}",
+        "updateParameters": {
+          "parentFolderId": "={{$json.destinationFolderId}}"
+        }
+      },
+      "name": "Move File",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 1,
+      "id": "64448554-1b77-442a-9e2c-e366e6b5eb16",
+      "position": [
+        1380,
+        640
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": "googleDriveApi"
+      }
+    },
+    {
+      "parameters": {
+        "message": "={{'File ' + $json.sourcePath + ' was successfully deleted.'}}",
+        "to": "={{$json.sender}}",
+        "from": "={{$env.TWILIO_WHATSAPP_NUMBER}}"
+      },
+      "name": "Send Deletion Success",
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "id": "6d9124dd-99e2-411a-8280-97f39458f33b",
+      "credentials": {
+        "twilioApi": "twilioApi"
+      },
+      "position": [
+        1680,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "mode": "json",
+          "value": [
+            {
+              "value1": "={{$json.command}}",
+              "value2": "MOVE",
+              "operator": "stringEquals"
+            }
+          ]
+        }
+      },
+      "name": "MOVE?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "id": "766a50e5-7489-4978-831d-b530c33a9254",
+      "position": [
+        800,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "message": "={{'File ' + $json.sourcePath + ' was successfully moved to ' + $json.destinationPath + '.'}}",
+        "to": "={{$json.sender}}",
+        "from": "={{$env.TWILIO_WHATSAPP_NUMBER}}"
+      },
+      "name": "Send Move Success",
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "id": "d0901e67-d8eb-4b2a-89a1-591b72138982",
+      "credentials": {
+        "twilioApi": "twilioApi"
+      },
+      "position": [
+        1680,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "mode": "json",
+          "value": [
+            {
+              "value1": "={{$json.command}}",
+              "value2": "SUMMARY",
+              "operator": "stringEquals"
+            }
+          ]
+        }
+      },
+      "name": "SUMMARY?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "id": "5f64d4b1-84e9-4441-948f-395780a4270b",
+      "position": [
+        800,
+        780
+      ]
+    },
+    {
+      "parameters": {
+        "message": "Sorry, that command is not supported. Please use LIST, DELETE, MOVE, or SUMMARY.",
+        "to": "={{$json.sender}}",
+        "from": "={{$env.TWILIO_WHATSAPP_NUMBER}}"
+      },
+      "name": "Unknown Command",
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "id": "ec824c11-9f20-410a-b333-e18e7e1329c3",
+      "credentials": {
+        "twilioApi": "twilioApi"
+      },
+      "position": [
+        800,
+        840
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getMany",
+        "folderId": "1CCpWoyZN8R7fWvt-zsMk7hmhNkIDHhtn",
+        "returnAll": true
+      },
+      "name": "Get Summarizable Files",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 1,
+      "id": "53787747-495c-4395-8e7c-87d656910609",
+      "position": [
+        1380,
+        780
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": "googleDriveApi"
+      }
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": "={{$json.id}}"
+      },
+      "name": "Download File",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 1,
+      "id": "e0b57111-f10d-4959-99e8-78749ae130b4",
+      "position": [
+        1680,
+        780
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": "googleDriveApi"
+      }
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o",
+        "messages": [
+          {
+            "role": "system",
+            "content": "You are a helpful assistant that summarizes documents."
+          },
+          {
+            "role": "user",
+            "content": "Summarize the following document in a concise, bullet-point list. The document is titled \"{{$json.name}}\". The content is:\n\n{{$json.extractedText}}"
+          }
+        ]
+      },
+      "name": "OpenAI Summary",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "id": "71333333-e7e7-498c-85a0-0d33e5621430",
+      "position": [
+        2100,
+        780
+      ],
+      "credentials": {
+        "openAiApi": "openAIApi"
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "const fileContent = $input.item.binary.data.toString();\n\nreturn [\n  {\n    extractedText: fileContent\n  }\n];",
+        "jsScriptType": "node"
+      },
+      "name": "Extract Text",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "id": "87f0b5d1-d242-45e3-822e-a22b82f09623",
+      "position": [
+        1940,
+        780
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "const summaries = $input.all().map(item => item.json.choices[0].message.content).join('\\n\\n');\n\nreturn [\n  {\n    body: `Here are the summaries for files in {{$input.item.json.sourcePath}}: \\n\\n${summaries}`\n  }\n];",
+        "jsScriptType": "node"
+      },
+      "name": "Aggregate Summaries",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "id": "99e13d96-c67d-453d-8e4d-73b313e6d2b3",
+      "position": [
+        2340,
+        780
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getFileId",
+        "path": "1-lqY1fjtPzomlaP0AgAFtnbhqKrkLcT1"
+      },
+      "name": "Get File ID",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 1,
+      "id": "1d8d3283-7c87-43de-a5d6-84d4b3c0c00c",
+      "position": [
+        1100,
+        500
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": "googleDriveApi"
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getFileId",
+        "path": "1JTgg9y3jlcLa_uMieXw4lSUes_fY2El5"
+      },
+      "name": "Get Source File",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 1,
+      "id": "7d9c6155-b461-455b-b98a-75a1334c4f34",
+      "position": [
+        1100,
+        640
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": "googleDriveApi"
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getFolderId",
+        "path": "1-lqY1fjtPzomlaP0AgAFtnbhqKrkLcT1"
+      },
+      "name": "Get Destination Folder",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 1,
+      "id": "5e135e5d-c689-490b-9366-0e1d5a7d3a08",
+      "position": [
+        1240,
+        640
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": "googleDriveApi"
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getFolderId",
+        "path": "1CCpWoyZN8R7fWvt-zsMk7hmhNkIDHhtn"
+      },
+      "name": "Get Summary Folder ID",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 1,
+      "id": "f5a89f92-9c4c-4a37-b36c-94d306b6f722",
+      "position": [
+        1100,
+        780
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": "googleDriveApi"
+      }
+    },
+    {
+      "parameters": {
+        "message": "={{$json.body}}",
+        "to": "={{$json.sender}}",
+        "from": "={{$env.TWILIO_WHATSAPP_NUMBER}}"
+      },
+      "name": "Send Summary",
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "id": "b0a68d01-e23a-4e20-b4f0-4d8969242d54",
+      "credentials": {
+        "twilioApi": "twilioApi"
+      },
+      "position": [
+        2500,
+        780
+      ]
+    },
+    {
+      "parameters": {
+        "columnId": "A1",
+        "operation": "append",
+        "spreadsheetId": "={{$env.GOOGLE_SHEET_ID}}",
+        "value": "={{JSON.stringify([new Date().toISOString(), $json.sender, $json.command, $json.sourcePath, 'Success'])}}"
+      },
+      "name": "Log Move Action",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 1,
+      "id": "e674143a-7334-4b53-933e-e67c8b21c434",
+      "credentials": {
+        "googleSheetsOAuth2Api": "googleSheetsApi"
+      },
+      "position": [
+        1540,
+        640
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": [
+      [
+        "Parse Command"
+      ]
+    ],
+    "Parse Command": [
+      [
+        "Route Commands"
+      ]
+    ],
+    "Log Action": [
+      [
+        "Send Deletion Success"
+      ]
+    ],
+    "Route Commands": [
+      [
+        "Get Folder ID"
+      ],
+      [
+        "DELETE?"
+      ],
+      [
+        "MOVE?"
+      ],
+      [
+        "SUMMARY?"
+      ],
+      [
+        "Unknown Command"
+      ]
+    ],
+    "Get Folder ID": [
+      [
+        "List Files"
+      ]
+    ],
+    "Send Response": [],
+    "List Files": [
+      [
+        "Format List"
+      ]
+    ],
+    "Format List": [
+      [
+        "Send List"
+      ]
+    ],
+    "Send List": [],
+    "DELETE?": [
+      [
+        "Get File ID"
+      ]
+    ],
+    "Delete File": [
+      [
+        "Log Action"
+      ]
+    ],
+    "Move File": [
+      [
+        "Log Move Action"
+      ]
+    ],
+    "Send Deletion Success": [],
+    "MOVE?": [
+      [
+        "Get Source File"
+      ]
+    ],
+    "Send Move Success": [],
+    "SUMMARY?": [
+      [
+        "Get Summary Folder ID"
+      ]
+    ],
+    "Unknown Command": [],
+    "Get Summarizable Files": [
+      [
+        "Download File"
+      ]
+    ],
+    "Download File": [
+      [
+        "Extract Text"
+      ]
+    ],
+    "OpenAI Summary": [
+      [
+        "Aggregate Summaries"
+      ]
+    ],
+    "Extract Text": [
+      [
+        "OpenAI Summary"
+      ]
+    ],
+    "Aggregate Summaries": [
+      [
+        "Send Summary"
+      ]
+    ],
+    "Get File ID": [
+      [
+        "Delete File"
+      ]
+    ],
+    "Get Source File": [
+      [
+        "Get Destination Folder"
+      ]
+    ],
+    "Get Destination Folder": [
+      [
+        "Move File"
+      ]
+    ],
+    "Get Summary Folder ID": [
+      [
+        "Get Summarizable Files"
+      ]
+    ],
+    "Send Summary": [],
+    "Log Move Action": [
+      [
+        "Send Move Success"
+      ]
+    ]
+  },
+  "pinData": {
+    "Get Folder ID": {
+      "x": 1100,
+      "y": 280,
+      "description": "Finds the folder ID for the LIST command."
+    },
+    "List Files": {
+      "x": 1380,
+      "y": 280,
+      "description": "Lists all files in the specified folder."
+    },
+    "Format List": {
+      "x": 1680,
+      "y": 280,
+      "description": "Formats the file list into a readable string."
+    },
+    "Send List": {
+      "x": 1940,
+      "y": 280,
+      "description": "Sends the formatted list back to the user via Twilio."
+    },
+    "Get File ID": {
+      "x": 1100,
+      "y": 500,
+      "description": "Finds the file ID for the DELETE command."
+    },
+    "Delete File": {
+      "x": 1380,
+      "y": 500,
+      "description": "Deletes the file from Google Drive."
+    },
+    "Log Action": {
+      "x": 1380,
+      "y": 500,
+      "description": "Logs the action to Google Sheets."
+    },
+    "Send Deletion Success": {
+      "x": 1680,
+      "y": 500,
+      "description": "Confirms successful deletion to the user."
+    },
+    "Get Source File": {
+      "x": 1100,
+      "y": 640,
+      "description": "Finds the source file ID for the MOVE command."
+    },
+    "Get Destination Folder": {
+      "x": 1240,
+      "y": 640,
+      "description": "Finds the destination folder ID for the MOVE command."
+    },
+    "Move File": {
+      "x": 1380,
+      "y": 640,
+      "description": "Moves the file to the new folder."
+    },
+    "Log Move Action": {
+      "x": 1540,
+      "y": 640,
+      "description": "Logs the move action to Google Sheets."
+    },
+    "Send Move Success": {
+      "x": 1680,
+      "y": 640,
+      "description": "Confirms successful move to the user."
+    },
+    "Get Summary Folder ID": {
+      "x": 1100,
+      "y": 780,
+      "description": "Finds the folder ID for the SUMMARY command."
+    },
+    "Get Summarizable Files": {
+      "x": 1380,
+      "y": 780,
+      "description": "Lists files (PDF, DOCX, TXT) in the folder."
+    },
+    "Download File": {
+      "x": 1680,
+      "y": 780,
+      "description": "Downloads the content of each file."
+    },
+    "Extract Text": {
+      "x": 1940,
+      "y": 780,
+      "description": "Extracts text from the file content."
+    },
+    "OpenAI Summary": {
+      "x": 2100,
+      "y": 780,
+      "description": "Calls GPT-4o to generate a summary."
+    },
+    "Aggregate Summaries": {
+      "x": 2340,
+      "y": 780,
+      "description": "Combines all summaries into a single message."
+    },
+    "Send Summary": {
+      "x": 2500,
+      "y": 780,
+      "description": "Sends the final summary message to the user."
+    }
+  }
+}
